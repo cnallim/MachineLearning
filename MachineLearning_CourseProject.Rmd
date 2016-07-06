@@ -1,0 +1,130 @@
+---
+output: 
+  html_document: 
+    keep_md: yes
+---
+#***Machine Learning - Course Project***
+###*by Carlos A. Nallim*
+
+##**Background**
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+##**Data**
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har.
+
+##**Working directory and packages**
+```{r, echo=TRUE}
+getwd()
+suppressMessages(library(caret))
+#I set seed for reproducibility
+set.seed(2468)
+```
+
+###**Loading data**
+```{r, echo=TRUE,cache=TRUE}
+trainingURL<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingURL<-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(trainingURL), na.strings=c("NA","#DIV/0!",""))
+testing<-read.csv(url(testingURL), na.strings=c("NA","#DIV/0!",""))
+
+```
+
+
+###**Data Cleaning**
+
+By executing the following code many things can be learned (code results have been hidden in output HTML document for readability)
+
+```{r, echo=TRUE, results='hide'}
+str(training)
+colnames(training)
+sapply(training,class)
+```
+
+1) "str" tells us there are 19622 obs. of  160 variables, and many of them seem to have lots of NA큦 values.
+2) Since there is no Code Book available, "colnames" provides a feeling of which variables may not be useful for our analysis (assuming that labels are descriptive). The first seven (7) columns meet that criterium.
+3) The last command lets us know variable types, ("classe" is a factor-type one, with five levels, A,B,C,D & E).
+
+Let큦 clean our training dataset based on these results:
+```{r, echo=TRUE}
+# Removal of NA큦. Columns with an excess of 90%  NA큦 are removed (the 90% threshold is an arbitrary choice of mine)
+training<-training[,!(colSums(is.na(training))>=0.9*nrow(training))]
+# Removal of "useless" columns
+training<-training[,-c(1:7)]
+dim(training)
+```
+
+The result shows we have kept all our information (there are still 19622 observations), but now they are concentrated in just 53 columns (instead of the original 160).
+
+
+```{r, echo=FALSE}
+#I first thought of doing what follows in code, but after thinking it over I decided it was an unnecessary step. I assume that once you create a model using whatever predictors (variables) you choose, afterwards, when you use that model to predict, only the predictors that entered into the creation of the model are used, from all the ones present in the testing dataset. I tried it both ways, eliminating the same columns from the testind dataset that I had eliminated from the training set in the cleaning stage, or just leaving the original testing data set intact, and it made no difference in the output. That큦 why I think my assumption is correct.
+
+# I just leave this short comment -and following code-  here only as part of my learning process.
+
+#I now keep the same columns in the testing set for future use in the prediction stage:
+#variableNames<-colnames(training)
+#variableNames
+#testing<-testing[,colnames(testing)%in%variableNames] 
+#WHY HAS TESTING Lost the classe variable ???? FActor ??
+#str(testing)
+```
+
+###**Data Partitioning**
+
+```{r, echo=TRUE}
+##Creating subsets of training and testing data from the original training dataset
+inTrain<-createDataPartition(training$classe,p=0.6,list=FALSE)
+trainingData<-training[inTrain,]
+testingData<-training[-inTrain,]
+dim(trainingData);dim(testingData)
+```
+
+###**Model training**
+
+I will use the randomForest function (from the randomForest package) to get a model using the subset of training data created just above. I made this choice because (from the lectures): "Random forests are usually one of the two top performing algorithms ...in prediction contests" and "(are) often very accurate"
+
+Regarding cross validation, "In random forests, there is no need for cross-validation or a separate test set to get an unbiased estimate of the test set error. It is estimated internally, during the run" (see: "The out-of-bag (oob) error estimate" at http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#ooberr)
+
+```{r, echo=TRUE}
+suppressMessages(library(randomForest))
+rfModelFit<-randomForest(classe~.,data=trainingData)
+rfModelFit
+plot(rfModelFit)
+```
+
+Results are good: a) a low out-of-bag (OOB, or out-of sample) error estimate  of 0.59% (see https://stat.ethz.ch/education/semesters/ss2012/ams/slides/v10.2.pdf , slide 7, or the previous reference from Berkeley), and b) confussion matrix shows good fit on the training set.
+
+###**Prediction on the testing subset using the model**
+
+Let큦 use the model on the testingData subset
+
+```{r, echo=TRUE}
+#Perform prediction
+predictionTestingData<-predict(rfModelFit, newdata=testingData)
+#Show results
+confusionMatrix(predictionTestingData,testingData$classe)
+```
+
+We get good prediction results, as indicated by the confussion matrix. 
+
+###**Prediction on the testing set for submission**
+
+Let큦 apply the model to predict on the original testing set 
+
+```{r, echo=TRUE}
+prediction<-predict(rfModelFit, newdata=testing, type="Class")
+prediction
+```
+
+
